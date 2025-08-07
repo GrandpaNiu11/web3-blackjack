@@ -1,28 +1,32 @@
 'use client'
 
 import {useEffect, useState} from "react";
-import {suite} from "node:test";
 import {ConnectButton} from "@rainbow-me/rainbowkit";
-import {useAccount} from "wagmi";
+import {useAccount, useConnect, useSignMessage, useWriteContract} from "wagmi";
+import ABI from  "./abi.json"
+import {injected} from "wagmi/connectors";
 
 function Page() {
     const [message, setMessage] = useState<String>("")
     const [playerHand, setPlayerHand] = useState<{ rank: string, suit: string }[]>([])
     const [dealeHand, setDealeHand] = useState<{ rank: string, suit: string }[]>([])
     const [score, setScore] = useState()
-   let {address,isConnected} = useAccount();
+    const [isSigned, setIsSigned] = useState<boolean>(false)
+    let {address,isConnected} = useAccount();
+    const {signMessageAsync} = useSignMessage();
+    const { connect } = useConnect()
+    const { writeContract, isPending } = useWriteContract()
 
-    useEffect(() => {
-        initGame();
-        console.log( "address========",address)
-        console.log( "isConnected========",isConnected)
-    }, [])
 
     async function handhit() {
         const response = await fetch("/api", {
             method: "POST",
+            headers: {
+                "Authorization": `Bearer ${localStorage.getItem("jwt") || ""}`
+            },
             body: JSON.stringify({
-                action: "hit"
+                action: "hit",
+                address
             })
         });
         const data = await response.json();
@@ -30,13 +34,18 @@ function Page() {
         setDealeHand(data.dealerHand)
         setMessage(data.message);
         setScore(data.score);
+
     }
 
     async function handstand() {
         const response = await fetch("/api", {
             method: "POST",
+            headers: {
+                "Authorization": `Bearer ${localStorage.getItem("jwt") || ""}`
+            },
             body: JSON.stringify({
-                action: "stand"
+                action: "stand",
+                address
             })
         });
         const data = await response.json();
@@ -47,7 +56,7 @@ function Page() {
     }
 
     async function handrest() {
-        const response = await fetch("/api");
+        const response = await fetch(`/api?address=${address}`);
         const data = await response.json();
         setPlayerHand(data.playerHand)
         setDealeHand(data.dealerHand)
@@ -57,7 +66,7 @@ function Page() {
 
 
     const initGame = async () => {
-        const response = await fetch("/api");
+        const response = await fetch(`/api?address=${address}`);
         const data = await response.json();
         setPlayerHand(data.playerHand)
         setDealeHand(data.dealerHand)
@@ -65,12 +74,85 @@ function Page() {
         setScore(data.score);
     }
 
+    async function hanleSign(){
+        const message =`Welcome to the game black jack at ${new Date().toString()}`
+        const signature = await  signMessageAsync({message});
+        console.log("signature",signature)
+        const response = await fetch("/api", {
+            method: "POST",
+            body: JSON.stringify({
+                action: "auth",
+                address,
+                message,
+                signature
+            })
+        });
+        if (response.status===200){
+            setIsSigned(true)
+            console.log("验证成功")
+            const {jsonwebToken} = await response.json();
+            localStorage.setItem("jwt",jsonwebToken)
+            // 初始化
+            initGame();
+        }
+    }
+    // 发送nft
+    async function handleSendTs(){
+        const accounts = await window.ethereum.request({ method: 'eth_accounts' })
+        if (accounts.length === 0) {
+            // 弹窗请求授权
+            await window.ethereum.request({ method: 'eth_requestAccounts' })
+        }
+
+        // await connect({ connector: injected() })
+        if (score<1000){
+            return  alert("Your score is less than 1000") ;
+        }
+        console.log("11",ABI)
+        // console.log(ABI)
+        console.log('当前地址:', address, '已连接:', isConnected)
+
+        const hash =    await  writeContract({
+                address: process.env.NEXT_PUBLIC_Address,
+                abi: ABI, // 你的合约ABI
+                functionName: 'safeMint',
+                args: [address], // 参数数组）
+            })
+        console.log('交易哈希:', hash) // 调试3：确认交易发送
+
+        // 在清空分数
+        const response = await fetch("/api", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${localStorage.getItem("jwt") || ""}`
+            },
+            body: JSON.stringify({
+                action: "clearall",
+                address,
+
+            })
+        });
+        handrest()
+    }
+
+
+    if (!isSigned){
+       return ( <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
+           <ConnectButton  />
+           <button  onClick={hanleSign} className="bg-amber-300 rounded-md p-2 m-2">Sign with your wallet       </button>
+       </div>
+    )
+    }
 
     return (
         <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
-            <ConnectButton />
-            <h1 className="text-3xl bold">Welcome to Web3 game Balck jak</h1>
+            <ConnectButton  />
+            <h1 className="text-3xl bold">Welcome to Web3 game Balck jak(1000 score to get NFT)</h1>
         <h2 className={`text-2xl ${message === "You win" ? "bg-green-400" : "bg-amber-300"}`}>score :{score} {message}</h2>
+            { score >= 1000 &&(      <button  onClick={handleSendTs} className="bg-amber-300 rounded-md p-2">get NFT</button>)
+            }
+            {      isPending ? '铸造中...' : '铸造 NFT'}
+
         <div className="mt-4">
             <h2>Dealers hand</h2>
 
