@@ -8,4 +8,4 @@
 <img width="988" height="800" alt="image" src="https://github.com/user-attachments/assets/0c1adeac-b0b8-4f40-8db0-a5256ad68f5e" />
 
 
-使用wgmi 框架+ next 作为后端服务器  持久化存储用mysql 进行<img width="461" height="135" alt="image" src="https://github.com/user-attachments/assets/e682a973-ed22-4ede-b621-1e23a64695fe" />
+使用wgmi 框架+ next  作为后端服务器  + nft721作为合约 持久化存储用mysql 进行<img width="461" height="135" alt="image" src="https://github.com/user-attachments/assets/e682a973-ed22-4ede-b621-1e23a64695fe" />
